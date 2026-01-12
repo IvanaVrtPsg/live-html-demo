@@ -1,4 +1,27 @@
+import { useNavigate } from 'react-router-dom';
+import { Workflow } from 'lucide-react';
+
+function Header() {
+  const navigate = useNavigate();
+  
+  return (
+    <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+      <h1 className="text-xl font-semibold">Planet IAS</h1>
+      
+      <button 
+        onClick={() => navigate('/workflow-creator')}
+        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2 transition-colors"
+      >
+        <Workflow size={20} />
+        <span>Workflow Creator</span>
+      </button>
+    </header>
+  );
+}
+
+export default Header;
 import React, { useState } from 'react';
+
 import { Search, Calendar, Building2, Users, FileText, Mail, Clock, Check, X, Plus, MoreHorizontal, ChevronLeft, ChevronRight, ChevronDown, AlertCircle, Bell, RefreshCw, Send, CheckCircle, XCircle, Pause, Play } from 'lucide-react';
 
 export default function PLANetDocumentWorkflow() {
