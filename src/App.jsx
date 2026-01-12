@@ -349,6 +349,98 @@ export default function PLANetDocumentWorkflow() {
                         <input type="text" value={workflowConfig.requireApprovalAbove} className="w-full border border-gray-300 rounded px-3 py-2" readOnly />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="text-gray-600 block mb-1">Retention Period</label>
+                        <input type="text" value={workflowConfig.retentionPeriod} className="w-full border border-gray-300 rounded px-3 py-2" readOnly />
+                      </div>
+                      <div>
+                        <label className="text-gray-600 block mb-1">Version Control</label>
+                        <input type="text" value={workflowConfig.versionControl} className="w-full border border-gray-300 rounded px-3 py-2" readOnly />
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <label className="text-gray-600 block mb-1">Audit Trail</label>
+                      <input type="text" value={workflowConfig.auditTrail} className="w-full border border-gray-300 rounded px-3 py-2" readOnly />
+                    </div>
+                    <div className="text-sm">
+                      <label className="text-gray-600 block mb-2">Approvers</label>
+                      <div className="flex flex-wrap gap-2">
+                        {workflowConfig.approvers.map((approver, i) => (
+                          <span key={i} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                            {approver}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <label className="text-gray-600 block mb-2">Notify on Complete</label>
+                      <div className="flex flex-wrap gap-2">
+                        {workflowConfig.notifyOnComplete.map((email, i) => (
+                          <span key={i} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs">
+                            {email}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Workflow Steps */}
+                <div className="border border-gray-300 rounded">
+                  <div className="bg-gray-50 px-4 py-2 border-b border-gray-300">
+                    <h3 className="font-semibold text-gray-800">Workflow Execution Timeline</h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {workflowSteps.map((step) => (
+                        <div key={step.id}>
+                          <div className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
+                            {getStepIcon(step.status)}
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-gray-800">{step.name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500">{step.duration}</span>
+                                  {step.id === 12 && step.status === 'pending' && (
+                                    <button 
+                                      onClick={handleScheduleActivity}
+                                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center gap-1"
+                                    >
+                                      <Calendar className="w-3 h-3" />
+                                      Schedule
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                                <span>{step.assignee}</span>
+                                {step.completedDate !== '-' && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{step.completedDate}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {step.hasChanges && (
+                            <div className="ml-8 mt-1 mb-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+                              <div className="flex items-center gap-1 mb-1">
+                                <AlertCircle className="w-3 h-3 text-orange-600" />
+                                <span className="font-semibold text-orange-800">Contract differs from previous version</span>
+                              </div>
+                              <div className="space-y-0.5 mb-1 text-gray-600">
+                                {step.changedClauses.map((clause, i) => (
+                                  <div key={i}>• {clause}</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
