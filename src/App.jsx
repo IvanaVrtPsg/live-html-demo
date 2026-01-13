@@ -1,6 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Header from './components/Header/Header';
-import Header from './components/Header/Header.jsx';
 import PLANetDocumentWorkflow from './PLANetDocumentWorkflow';
 
 function App() {
