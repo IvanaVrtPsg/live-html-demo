@@ -7,24 +7,24 @@ const WorkflowCreatorMockup = () => {
   const [workflowName, setWorkflowName] = useState('Untitled Workflow');
   const [canvasNodes, setCanvasNodes] = useState([
     { id: 1, type: 'trigger', label: 'Start', x: 100, y: 50, icon: 'Play', config: {} },
-    { id: 2, type: 'action', label: 'Send Email', x: 100, y: 200, icon: 'Mail', config: { template: 'Welcome Email', recipients: '' } },
+    { id: 2, type: 'action', label: 'Send Email', x: 100, y: 200, icon: 'Mail', config: { template: 'Welcome Email', recipients: [] } },
     { id: 3, type: 'condition', label: 'If Response?', x: 100, y: 350, icon: 'GitBranch', config: {} }
   ]);
   const [connections, setConnections] = useState([
-    { from: 1, to: 2 },
-    { from: 2, to: 3 }
+    { from: 1, to: 2, type: 'default' },
+    { from: 2, to: 3, type: 'default' }
   ]);
   const [dragging, setDragging] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [showAIModal, setShowAIModal] = useState(false);
   const [showCustomElementModal, setShowCustomElementModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [customElement, setCustomElement] = useState({ label: '', type: 'action', color: 'bg-blue-500', icon: 'CheckCircle' });
-  const [savedWorkflows, setSavedWorkflows] = useState([
-    { id: 1, name: 'User Onboarding Flow', nodes: 5, updated: '2 hours ago' },
-    { id: 2, name: 'Invoice Processing', nodes: 8, updated: '1 day ago' },
-    { id: 3, name: 'Customer Support Ticket', nodes: 6, updated: '3 days ago' }
-  ]);
+  const [connectingFrom, setConnectingFrom] = useState(null);
+  const [connectionType, setConnectionType] = useState('default');
+  const [recipientInput, setRecipientInput] = useState('');
+  const [savedWorkflows, setSavedWorkflows] = useState([]);
   const [nodeTypes, setNodeTypes] = useState([
     { type: 'trigger', label: 'Trigger', icon: 'Play', color: 'bg-green-500' },
     { type: 'action', label: 'Action', icon: 'CheckCircle', color: 'bg-blue-500' },
@@ -53,11 +53,20 @@ const WorkflowCreatorMockup = () => {
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 0.1, 0.5));
 
   const handleSave = () => {
+    if (!workflowName.trim()) {
+      alert('Please enter a workflow name before saving.');
+      return;
+    }
+    
     const newWorkflow = {
-      id: savedWorkflows.length + 1,
+      id: Date.now(),
       name: workflowName,
       nodes: canvasNodes.length,
-      updated: 'Just now'
+      updated: 'Just now',
+      data: {
+        nodes: canvasNodes,
+        connections: connections
+      }
     };
     setSavedWorkflows([newWorkflow, ...savedWorkflows]);
     alert(`Workflow "${workflowName}" saved successfully!`);
@@ -75,7 +84,7 @@ const WorkflowCreatorMockup = () => {
     const y = (e.clientY - rect.top) / zoom - 40;
     
     const newNode = {
-      id: canvasNodes.length + 1,
+      id: Math.max(0, ...canvasNodes.map(n => n.id)) + 1,
       type: nodeType.type,
       label: nodeType.label,
       x: Math.max(0, x),
@@ -87,7 +96,7 @@ const WorkflowCreatorMockup = () => {
   };
 
   const handleNodeMouseDown = (e, node) => {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button') || e.target.closest('.connection-dot')) return;
     setDragging(node.id);
     setSelectedNode(node.id);
     const rect = canvasRef.current.getBoundingClientRect();
@@ -124,17 +133,38 @@ const WorkflowCreatorMockup = () => {
   const handleCopyNode = (node) => {
     const newNode = {
       ...node,
-      id: canvasNodes.length + 1,
+      id: Math.max(0, ...canvasNodes.map(n => n.id)) + 1,
       x: node.x + 50,
       y: node.y + 50
     };
     setCanvasNodes([...canvasNodes, newNode]);
   };
 
+  const handleConnectionStart = (nodeId, type) => {
+    setConnectingFrom(nodeId);
+    setConnectionType(type);
+  };
+
+  const handleConnectionEnd = (toNodeId) => {
+    if (connectingFrom && connectingFrom !== toNodeId) {
+      const newConnection = {
+        from: connectingFrom,
+        to: toNodeId,
+        type: connectionType
+      };
+      setConnections([...connections, newConnection]);
+    }
+    setConnectingFrom(null);
+    setConnectionType('default');
+  };
+
+  const handleDeleteConnection = (index) => {
+    setConnections(connections.filter((_, i) => i !== index));
+  };
+
   const handleAIGenerate = () => {
     if (!aiPrompt.trim()) return;
     
-    // Simulate AI generation
     const generatedNodes = [
       { id: Date.now(), type: 'trigger', label: 'Form Submitted', x: 100, y: 50, icon: 'Play', config: {} },
       { id: Date.now() + 1, type: 'action', label: 'Validate Data', x: 100, y: 180, icon: 'CheckCircle', config: {} },
@@ -144,10 +174,10 @@ const WorkflowCreatorMockup = () => {
     ];
     
     const generatedConnections = [
-      { from: Date.now(), to: Date.now() + 1 },
-      { from: Date.now() + 1, to: Date.now() + 2 },
-      { from: Date.now() + 2, to: Date.now() + 3 },
-      { from: Date.now() + 2, to: Date.now() + 4 }
+      { from: Date.now(), to: Date.now() + 1, type: 'default' },
+      { from: Date.now() + 1, to: Date.now() + 2, type: 'default' },
+      { from: Date.now() + 2, to: Date.now() + 3, type: 'yes' },
+      { from: Date.now() + 2, to: Date.now() + 4, type: 'no' }
     ];
     
     setCanvasNodes(generatedNodes);
@@ -155,7 +185,6 @@ const WorkflowCreatorMockup = () => {
     setWorkflowName(aiPrompt.slice(0, 30) + (aiPrompt.length > 30 ? '...' : ''));
     setShowAIModal(false);
     setAiPrompt('');
-    alert('AI workflow generated!');
   };
 
   const handleAddCustomElement = () => {
@@ -171,12 +200,17 @@ const WorkflowCreatorMockup = () => {
     setNodeTypes([...nodeTypes, newElementType]);
     setShowCustomElementModal(false);
     setCustomElement({ label: '', type: 'action', color: 'bg-blue-500', icon: 'CheckCircle' });
-    alert('Custom element added!');
   };
 
   const handleLoadWorkflow = (workflow) => {
     setWorkflowName(workflow.name);
-    alert(`Loading workflow: ${workflow.name}`);
+    if (workflow.data) {
+      setCanvasNodes(workflow.data.nodes);
+      setConnections(workflow.data.connections);
+      alert(`Loaded workflow: ${workflow.name}`);
+    } else {
+      alert(`Loading workflow: ${workflow.name} (no data available)`);
+    }
   };
 
   const updateNodeConfig = (field, value) => {
@@ -202,13 +236,14 @@ const WorkflowCreatorMockup = () => {
     <div className="h-screen flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-1">
           <h1 className="text-xl font-semibold text-gray-800">Workflow Creator</h1>
           <input 
             type="text" 
             value={workflowName}
             onChange={(e) => setWorkflowName(e.target.value)}
-            className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 max-w-md"
+            placeholder="Enter workflow name..."
           />
         </div>
         <div className="flex items-center gap-2">
@@ -285,7 +320,7 @@ const WorkflowCreatorMockup = () => {
 
           <div 
             className="relative p-8"
-            style={{ transform: `scale(${zoom})`, transformOrigin: '0 0' }}
+            style={{ transform: `scale(${zoom})`, transformOrigin: '0 0', minWidth: '2000px', minHeight: '2000px' }}
           >
             {/* SVG for connections */}
             <svg className="absolute top-0 left-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
@@ -293,22 +328,44 @@ const WorkflowCreatorMockup = () => {
                 <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
                   <polygon points="0 0, 10 3, 0 6" fill="#6b7280" />
                 </marker>
+                <marker id="arrowhead-yes" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                  <polygon points="0 0, 10 3, 0 6" fill="#22c55e" />
+                </marker>
+                <marker id="arrowhead-no" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                  <polygon points="0 0, 10 3, 0 6" fill="#ef4444" />
+                </marker>
               </defs>
               {connections.map((conn, idx) => {
                 const fromNode = canvasNodes.find(n => n.id === conn.from);
                 const toNode = canvasNodes.find(n => n.id === conn.to);
                 if (!fromNode || !toNode) return null;
+                
+                const strokeColor = conn.type === 'yes' ? '#22c55e' : conn.type === 'no' ? '#ef4444' : '#6b7280';
+                const markerEnd = conn.type === 'yes' ? 'url(#arrowhead-yes)' : conn.type === 'no' ? 'url(#arrowhead-no)' : 'url(#arrowhead)';
+                
                 return (
-                  <line
-                    key={idx}
-                    x1={fromNode.x + 120}
-                    y1={fromNode.y + 80}
-                    x2={toNode.x + 120}
-                    y2={toNode.y}
-                    stroke="#6b7280"
-                    strokeWidth="2"
-                    markerEnd="url(#arrowhead)"
-                  />
+                  <g key={idx}>
+                    <line
+                      x1={fromNode.x + 120}
+                      y1={fromNode.y + 80}
+                      x2={toNode.x + 120}
+                      y2={toNode.y}
+                      stroke={strokeColor}
+                      strokeWidth="2"
+                      markerEnd={markerEnd}
+                    />
+                    {/* Clickable invisible line for deletion */}
+                    <line
+                      x1={fromNode.x + 120}
+                      y1={fromNode.y + 80}
+                      x2={toNode.x + 120}
+                      y2={toNode.y}
+                      stroke="transparent"
+                      strokeWidth="10"
+                      className="pointer-events-auto cursor-pointer"
+                      onClick={() => handleDeleteConnection(idx)}
+                    />
+                  </g>
                 );
               })}
             </svg>
@@ -318,6 +375,7 @@ const WorkflowCreatorMockup = () => {
               const Icon = iconMap[node.icon];
               const isSelected = selectedNode === node.id;
               const nodeTypeData = nodeTypes.find(nt => nt.type === node.type);
+              const isCondition = node.type === 'condition';
               
               return (
                 <div
@@ -334,6 +392,17 @@ const WorkflowCreatorMockup = () => {
                     zIndex: isSelected ? 10 : 2
                   }}
                 >
+                  {/* Connection dots at top (input) */}
+                  <div 
+                    className="connection-dot absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-gray-400 hover:bg-blue-500 rounded-full border-2 border-white cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (connectingFrom) {
+                        handleConnectionEnd(node.id);
+                      }
+                    }}
+                  />
+                  
                   <div className="p-4">
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`${nodeTypeData?.color || 'bg-gray-500'} p-2 rounded text-white`}>
@@ -349,6 +418,7 @@ const WorkflowCreatorMockup = () => {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedNode(node.id);
+                          setShowConfigModal(true);
                         }}
                         className="flex-1 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded"
                       >
@@ -375,6 +445,36 @@ const WorkflowCreatorMockup = () => {
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Connection dots at bottom (output) */}
+                  {isCondition ? (
+                    <>
+                      <div 
+                        className="connection-dot absolute -bottom-3 left-1/4 -translate-x-1/2 w-6 h-6 bg-green-500 hover:bg-green-600 rounded-full border-2 border-white cursor-pointer"
+                        title="If Yes"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConnectionStart(node.id, 'yes');
+                        }}
+                      />
+                      <div 
+                        className="connection-dot absolute -bottom-3 right-1/4 translate-x-1/2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full border-2 border-white cursor-pointer"
+                        title="If No"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConnectionStart(node.id, 'no');
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <div 
+                      className="connection-dot absolute -bottom-3 left-1/2 -translate-x-1/2 w-6 h-6 bg-gray-400 hover:bg-blue-500 rounded-full border-2 border-white cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleConnectionStart(node.id, 'default');
+                      }}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -421,13 +521,19 @@ const WorkflowCreatorMockup = () => {
 
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">Recipients</label>
-                        <input 
-                          type="text" 
-                          value={selectedNodeData.config.recipients || ''}
-                          onChange={(e) => updateNodeConfig('recipients', e.target.value)}
-                          placeholder="user@example.com"
-                          className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                        />
+                        <div className="text-xs text-gray-500 mb-1">
+                          {(selectedNodeData.config.recipients || []).length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(selectedNodeData.config.recipients || []).map((email, idx) => (
+                                <span key={idx} className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-bold">
+                                  {email}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            'No recipients added'
+                          )}
+                        </div>
                       </div>
                     </>
                   )}
@@ -459,19 +565,467 @@ const WorkflowCreatorMockup = () => {
               {savedWorkflows.map(workflow => (
                 <div 
                   key={workflow.id}
-                  onClick={() => handleLoadWorkflow(workflow)}
-                  className="p-3 bg-gray-50 hover:bg-gray-100 rounded cursor-pointer border border-gray-200"
+                  className="p-3 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 group"
                 >
-                  <div className="font-medium text-sm text-gray-800">{workflow.name}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {workflow.nodes} nodes • {workflow.updated}
+                  <div className="flex items-start justify-between">
+                    <div 
+                      onClick={() => handleLoadWorkflow(workflow)}
+                      className="flex-1 cursor-pointer"
+                    >
+                      <div className="font-medium text-sm text-gray-800">{workflow.name}</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {workflow.nodes} nodes • {workflow.updated}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Delete workflow "${workflow.name}"?`)) {
+                          setSavedWorkflows(savedWorkflows.filter(w => w.id !== workflow.id));
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-red-600 hover:bg-red-50 rounded transition-opacity"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               ))}
+              {savedWorkflows.length === 0 && (
+                <div className="text-center text-gray-400 py-8">
+                  <p className="text-sm">No saved workflows yet</p>
+                  <p className="text-xs mt-1">Save your first workflow above</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Configure Modal */}
+      {showConfigModal && selectedNodeData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Configure: {selectedNodeData.label}</h2>
+              <button 
+                onClick={() => {
+                  setShowConfigModal(false);
+                  setRecipientInput('');
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Element Name</label>
+                <input
+                  type="text"
+                  value={selectedNodeData.label}
+                  onChange={(e) => {
+                    setCanvasNodes(canvasNodes.map(n => 
+                      n.id === selectedNode ? { ...n, label: e.target.value } : n
+                    ));
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {selectedNodeData.type === 'action' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Action Type</label>
+                    <select
+                      value={selectedNodeData.config.actionType || 'email'}
+                      onChange={(e) => updateNodeConfig('actionType', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="email">Send Email</option>
+                      <option value="api">API Call</option>
+                      <option value="database">Database Operation</option>
+                      <option value="notification">Send Notification</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Template</label>
+                    <select
+                      value={selectedNodeData.config.template || 'Welcome Email'}
+                      onChange={(e) => updateNodeConfig('template', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option>Welcome Email</option>
+                      <option>Notification</option>
+                      <option>Reminder</option>
+                      <option>Custom</option>
+                    </select>
+                  </div>
+
+                  {selectedNodeData.config.template === 'Custom' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Subject</label>
+                        <input
+                          type="text"
+                          value={selectedNodeData.config.customSubject || ''}
+                          onChange={(e) => updateNodeConfig('customSubject', e.target.value)}
+                          placeholder="Enter email subject"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Body</label>
+                        <textarea
+                          value={selectedNodeData.config.customBody || ''}
+                          onChange={(e) => updateNodeConfig('customBody', e.target.value)}
+                          placeholder="Enter email body content..."
+                          rows="4"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Recipients</label>
+                    <div className="space-y-2">
+                      {/* Tags display */}
+                      {(selectedNodeData.config.recipients || []).length > 0 && (
+                        <div className="flex flex-wrap gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50">
+                          {(selectedNodeData.config.recipients || []).map((email, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold"
+                            >
+                              {email}
+                              <button
+                                onClick={() => {
+                                  const newRecipients = selectedNodeData.config.recipients.filter((_, i) => i !== idx);
+                                  updateNodeConfig('recipients', newRecipients);
+                                }}
+                                className="hover:bg-blue-200 rounded-full p-0.5"
+                              >
+                                <X size={14} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Input field */}
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={recipientInput}
+                          onChange={(e) => setRecipientInput(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && recipientInput.trim()) {
+                              e.preventDefault();
+                              const currentRecipients = selectedNodeData.config.recipients || [];
+                              updateNodeConfig('recipients', [...currentRecipients, recipientInput.trim()]);
+                              setRecipientInput('');
+                            }
+                          }}
+                          placeholder="user@example.com"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          onClick={() => {
+                            if (recipientInput.trim()) {
+                              const currentRecipients = selectedNodeData.config.recipients || [];
+                              updateNodeConfig('recipients', [...currentRecipients, recipientInput.trim()]);
+                              setRecipientInput('');
+                            }
+                          }}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {selectedNodeData.type === 'condition' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Condition Type</label>
+                    <select
+                      value={selectedNodeData.config.conditionType || 'equals'}
+                      onChange={(e) => updateNodeConfig('conditionType', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="equals">Equals</option>
+                      <option value="notEquals">Not Equals</option>
+                      <option value="contains">Contains</option>
+                      <option value="greaterThan">Greater Than</option>
+                      <option value="lessThan">Less Than</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Value to Check</label>
+                    <input
+                      type="text"
+                      value={selectedNodeData.config.checkValue || ''}
+                      onChange={(e) => updateNodeConfig('checkValue', e.target.value)}
+                      placeholder="Enter value"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedNodeData.type === 'delay' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delay Duration</label>
+                    <input
+                      type="number"
+                      value={selectedNodeData.config.duration || ''}
+                      onChange={(e) => updateNodeConfig('duration', e.target.value)}
+                      placeholder="5"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Time Unit</label>
+                    <select
+                      value={selectedNodeData.config.timeUnit || 'minutes'}
+                      onChange={(e) => updateNodeConfig('timeUnit', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="seconds">Seconds</option>
+                      <option value="minutes">Minutes</option>
+                      <option value="hours">Hours</option>
+                      <option value="days">Days</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {selectedNodeData.type === 'database' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Operation</label>
+                    <select
+                      value={selectedNodeData.config.operation || 'insert'}
+                      onChange={(e) => updateNodeConfig('operation', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="insert">Insert</option>
+                      <option value="update">Update</option>
+                      <option value="select">Select</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Table Name</label>
+                    <input
+                      type="text"
+                      value={selectedNodeData.config.tableName || ''}
+                      onChange={(e) => updateNodeConfig('tableName', e.target.value)}
+                      placeholder="users"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedNodeData.type === 'notification' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Notification Type</label>
+                    <select
+                      value={selectedNodeData.config.notificationType || 'push'}
+                      onChange={(e) => updateNodeConfig('notificationType', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="push">Push Notification</option>
+                      <option value="sms">SMS</option>
+                      <option value="slack">Slack Message</option>
+                      <option value="teams">Microsoft Teams</option>
+                      <option value="inapp">In-App Notification</option>
+                      <option value="webhook">Webhook</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Message Title</label>
+                    <input
+                      type="text"
+                      value={selectedNodeData.config.notificationTitle || ''}
+                      onChange={(e) => updateNodeConfig('notificationTitle', e.target.value)}
+                      placeholder="Enter notification title"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Message Content</label>
+                    <textarea
+                      value={selectedNodeData.config.notificationContent || ''}
+                      onChange={(e) => updateNodeConfig('notificationContent', e.target.value)}
+                      placeholder="Enter notification message..."
+                      rows="3"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                    <select
+                      value={selectedNodeData.config.priority || 'normal'}
+                      onChange={(e) => updateNodeConfig('priority', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {selectedNodeData.type === 'approval' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Approval Type</label>
+                    <select
+                      value={selectedNodeData.config.approvalType || 'single'}
+                      onChange={(e) => updateNodeConfig('approvalType', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="single">Single Approver</option>
+                      <option value="multiple">Multiple Approvers</option>
+                      <option value="majority">Majority Vote</option>
+                      <option value="unanimous">Unanimous</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Approver(s)</label>
+                    <input
+                      type="text"
+                      value={selectedNodeData.config.approvers || ''}
+                      onChange={(e) => updateNodeConfig('approvers', e.target.value)}
+                      placeholder="manager@example.com"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Approval Message</label>
+                    <textarea
+                      value={selectedNodeData.config.approvalMessage || ''}
+                      onChange={(e) => updateNodeConfig('approvalMessage', e.target.value)}
+                      placeholder="Please review and approve this request..."
+                      rows="3"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Timeout (hours)</label>
+                    <input
+                      type="number"
+                      value={selectedNodeData.config.timeout || '24'}
+                      onChange={(e) => updateNodeConfig('timeout', e.target.value)}
+                      placeholder="24"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+
+              {selectedNodeData.type === 'trigger' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Trigger Type</label>
+                    <select
+                      value={selectedNodeData.config.triggerType || 'form'}
+                      onChange={(e) => updateNodeConfig('triggerType', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="form">Form Submission</option>
+                      <option value="webhook">Webhook</option>
+                      <option value="schedule">Scheduled</option>
+                      <option value="email">Email Received</option>
+                      <option value="api">API Call</option>
+                      <option value="manual">Manual Trigger</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Frequency</label>
+                    <select
+                      value={selectedNodeData.config.frequency || 'immediate'}
+                      onChange={(e) => updateNodeConfig('frequency', e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="immediate">Immediate</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="custom">Custom Schedule</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Source URL / Endpoint</label>
+                    <input
+                      type="text"
+                      value={selectedNodeData.config.sourceUrl || ''}
+                      onChange={(e) => updateNodeConfig('sourceUrl', e.target.value)}
+                      placeholder="https://example.com/webhook"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Custom Parameters</label>
+                    <textarea
+                      value={selectedNodeData.config.customParams || ''}
+                      onChange={(e) => updateNodeConfig('customParams', e.target.value)}
+                      placeholder="Enter custom parameters (JSON format)"
+                      rows="3"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowConfigModal(false);
+                  setRecipientInput('');
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfigModal(false);
+                  setRecipientInput('');
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
+              >
+                Save Configuration
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI Modal */}
       {showAIModal && (
